@@ -1,0 +1,14 @@
+# Build artifacts
+*.bin
+*.o
+*.tmp
+disk.img
+
+# IDE/Editor files
+.DS_Store
+.vscode/
+*.swp
+*.swo
+
+# Backup files
+*~
