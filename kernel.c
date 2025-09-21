@@ -1,5 +1,3 @@
-// Simple game logic only - no inline assembly
-// I/O will be handled by bootloader
 
 void print_char(char c) {
     asm volatile (
@@ -49,9 +47,6 @@ int player_count = 0;
 int dealer_count = 0;
 unsigned int seed = 1;
 
-// Card encoding: lower 4 bits = value (1-13), upper 4 bits = suit (0-3)
-// Values: 1=A, 2-10=face value, 11=J, 12=Q, 13=K
-// Suits: 0=♣, 1=♥, 2=♦, 3=♠
 int deck[52] = {
     // Clubs ♣ (suit 0)
     0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
@@ -63,29 +58,31 @@ int deck[52] = {
     0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D
 };
 
-// Helper functions for card handling
+int shuffled_deck[52];
+int deck_position = 0;
+
 int get_card_value(int card) {
-    return card & 0x0F;  // Lower 4 bits
+    return card & 0x0F; 
 }
 
 int get_card_suit(int card) {
-    return (card >> 4) & 0x0F;  // Upper 4 bits
+    return (card >> 4) & 0x0F;
 }
 
 int get_blackjack_value(int card) {
     int value = get_card_value(card);
-    if (value >= 11 && value <= 13) {  // J, Q, K
+    if (value >= 11 && value <= 13) { 
         return 10;
     }
-    return value;  // A=1, 2-10=face value
+    return value;
 }
 
 void print_suit(int suit) {
     switch(suit) {
-        case 0: print_char(5); break;   // ♣ Clubs (ASCII 5)
-        case 1: print_char(3); break;   // ♥ Hearts (ASCII 3)
-        case 2: print_char(4); break;   // ♦ Diamonds (ASCII 4)
-        case 3: print_char(6); break;   // ♠ Spades (ASCII 6)
+        case 0: print_char(5); break;
+        case 1: print_char(3); break;
+        case 2: print_char(4); break;
+        case 3: print_char(6); break;
         default: print_char('?'); break;
     }
 }
@@ -101,15 +98,33 @@ void print_card_value(int value) {
     }
 }
 
-// Simple pseudo-random number generator
 int random() {
     seed = seed * 1103515245 + 12345;
     return (seed >> 16) & 0x7FFF;
 }
 
+// Fisher-Yates 
+void shuffle_deck() {
+    for (int i = 0; i < 52; i++) {
+        shuffled_deck[i] = deck[i];
+    }
+
+    for (int i = 51; i > 0; i--) {
+        int j = random() % (i + 1);
+        int temp = shuffled_deck[i];
+        shuffled_deck[i] = shuffled_deck[j];
+        shuffled_deck[j] = temp;
+    }
+
+    deck_position = 0; 
+}
+
 int give_card() {
-    int pos = random() % 52;
-    return deck[pos];
+    if (deck_position >= 52) {
+        shuffle_deck();
+    }
+
+    return shuffled_deck[deck_position++];
 }
 
 int calculate_hand(int* cards, int count) {
@@ -118,17 +133,16 @@ int calculate_hand(int* cards, int count) {
 
     for (int i = 0; i < count; i++) {
         int value = get_card_value(cards[i]);
-        if (value == 1) {  // Ace
+        if (value == 1) {  
             aces++;
             total += 11;
-        } else if (value >= 11 && value <= 13) {  // J, Q, K
+        } else if (value >= 11 && value <= 13) {  
             total += 10;
-        } else {  // 2-10
+        } else {
             total += value;
         }
     }
 
-    // Convert Aces from 11 to 1 if needed
     while (total > 21 && aces > 0) {
         total -= 10;
         aces--;
@@ -170,23 +184,22 @@ void kernel_main() {
     print_string("Press any key to start...\n\r");
     char first_key = read_key();
 
-    // Seed random with keypress
     seed = (unsigned int)first_key * 31 + 17;
 
     while (1) {
         player_count = 0;
         dealer_count = 0;
 
+        shuffle_deck();
+
         clear_screen();
         print_string("=== NEW ROUND ===\n\r");
 
-        // Deal initial cards
         player_cards[player_count++] = give_card();
         dealer_cards[dealer_count++] = give_card();
         player_cards[player_count++] = give_card();
         dealer_cards[dealer_count++] = give_card();
 
-        // Player turn
         while (1) {
             print_string("\n\r");
             show_cards(player_cards, player_count, "Player");
@@ -216,7 +229,6 @@ void kernel_main() {
             }
         }
 
-        // Dealer turn
         int player_total = calculate_hand(player_cards, player_count);
         if (player_total <= 21) {
             print_string("\n\r\n\rDealer's turn...\n\r");
